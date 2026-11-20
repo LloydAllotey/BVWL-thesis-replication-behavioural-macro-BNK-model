@@ -1,0 +1,701 @@
+---
+title: "Thesis_Replication -- User Guide"
+subtitle: "An R folder that reproduces the main results of the empirical chapters of *Imperfect Credibility at the Effective Lower Bound*"
+author:
+  - "Lloyd Allotey"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    toc-location: left
+    embed-resources: true
+    fig-align: center
+    fig-cap-location: bottom
+    tbl-cap-location: top
+    code-fold: false
+    code-tools: false
+execute:
+  echo: true
+  warning: false
+  message: false
+editor:
+  markdown:
+    wrap: 72
+---
+
+```{r}
+#| label: setup
+#| include: false
+# The scripts use paths relative to the project root, so every chunk runs there
+knitr::opts_knit$set(root.dir = "..")
+```
+
+## 0 Overview
+
+`Thesis_Replication` is the R folder behind the empirical chapters of
+the bachelor thesis *Imperfect Credibility at the Effective Lower Bound:
+A Behavioural Macroeconomic Analysis of Eurozone Inflation Expectations*
+(University of St. Gallen, November 2026). Two scripts do the work.
+`build_database.R` turns the raw downloads into a DuckDB database once.
+`main.R` reads that database, classifies the forecasters of the ECB
+Survey of Professional Forecasters (SPF), estimates the two behavioural
+parameters of the expectations block and evaluates both models against
+the SPF mean.
+
+Research question of the thesis:
+
+> To what extent does a time varying perceived inflation anchor improve
+> the ability of the expectations block of a Behavioural New Keynesian
+> model to explain euro area inflation expectations, particularly at
+> the effective lower bound, and does any potential gain stem from the
+> anchor itself or from agents switching between forecasting rules?
+
+**Model A** is centred on the announced target of 2%. **Model B** is
+centred on the perceived anchor built from the 5y5y inflation-linked
+swap rate. **Model S**, centred on the mean SPF five-year-ahead
+forecast, is the robustness check.
+
+With its default parameters `main.R` reproduces Tables 4.2, 5.3 to 5.7,
+6.1 to 6.4 and J.1 and Figures 4.1 to 4.3, 5.1 to 5.4, J.1 and J.2. Not
+in the package are Table 4.3 and Figure 4.4 (capture ratios), Figures
+J.3 and J.4 and the dashed Wald curves of Figure 5.2.
+
+## 1 Getting started
+
+### 1.1 Requirements
+
+-   R 4.4 or 4.5 and RStudio
+-   An internet connection for the first start, when `renv` installs
+    the packages
+-   No build tools. The packages come ready-built for Windows and macOS
+
+### 1.2 Install
+
+Extract the archive, open `Thesis_Replication.Rproj` in RStudio and run
+this once in the console:
+
+``` r
+renv::restore(prompt = FALSE)
+```
+
+It installs the package versions of `renv.lock` into a project library
+and takes about a minute. On a Mac, unzip to Documents rather than
+Downloads.
+
+### 1.3 First run
+
+Open `main.R` and source it (the Source button, or Ctrl+Shift+S). The
+default run takes about two and a half minutes. Tables appear in the
+console, figures in the Plots pane. Nothing is written to disk.
+
+### 1.4 Changing a parameter
+
+Every parameter sits in Part I of `main.R` with its thesis value in a
+comment. Change a value and source the script again. Every table and
+figure follows. At the end the script lists the parameters that differ
+from the thesis and checks Table 5.6 against the thesis values.
+
+### 1.5 Rebuild the database (optional)
+
+``` r
+source("build_database.R")
+```
+
+The database ships ready, so this step is only needed if a raw file is
+replaced. The script reads the raw files in `data/raw/`, saves every
+cleaning step as its own table and prints the checks of the data
+chapter. It takes under a minute.
+
+## 2 How the folder is organised
+
+| File | Purpose |
+|------------------------------|------------------------------------------|
+| `main.R` | The analysis, one script read top to bottom |
+| `build_database.R` | Builds `data/thesis.duckdb` from `data/raw/` |
+| `data/raw/` | The raw downloads as obtained |
+| `data/thesis.duckdb` | The database, 13 tables (Section 6) |
+| `notebooks/user_guide.qmd` | This guide, rendered to `user_guide.html` |
+| `renv.lock`, `renv/activate.R`, `.Rprofile` | The package versions |
+| `README.md` | How to run it, in short |
+
+`main.R` has ten parts. They are RStudio sections, so the document
+outline (Ctrl+Shift+O) jumps between them.
+
+| Part | What it does | Main objects |
+|---------|---------------------------------------|-------------------------|
+| Set up | Loads the packages | |
+| I | Parameters | `anchor`, `score`, `delta`, the switches, `baseline`, `this_run` |
+| II | Input checks | |
+| III | Loads the data, builds the centres, calibrates the constants | `panel`, `rounds`, `premium`, `models` |
+| IV | Model functions | the functions of Section 4 |
+| V | Classification, Table 4.2 | `classified`, `shares` |
+| VI | Estimation, Table 5.3 | `fit`, `results` |
+| VII | Evaluation, Tables 5.4, 5.6 and 5.7 | |
+| VIII | Side analyses, Tables 5.5 and 6.1 to 6.4, and Table J.1 | `real_time_biases` |
+| IX | Comparison with the thesis | `changed`, `comparison` |
+| X | Figures 4.1 to 4.3, 5.1 to 5.4, J.1 and J.2 | |
+
+Every table and figure stays in the workspace as an object. Its name
+starts with the thesis number and ends with a word for its content, for
+example `table_5_6_gain` or `fig_5_2_profiles`.
+
+`build_database.R` has eleven parts in the same style, one per source
+and cleaning step.
+
+## 3 Parameter reference (Part I of `main.R`)
+
+Data inputs.
+
+| Parameter | Thesis value | Meaning |
+|-----------------|-----------------|-------------------------------------|
+| `DB_FILE` | `"data/thesis.duckdb"` | The database |
+| `TABLE_PANEL`, `TABLE_ROUNDS` | `"estimation_panel"`, `"rounds"` | The two tables the script reads |
+
+Four switches change the specification.
+
+| Parameter | Thesis value | Meaning |
+|-----------------|-----------------|-------------------------------------|
+| `anchor` | `"ILS"` | Centre of the second model. `"ILS"` gives Model B, `"LTSPF"` gives Model S |
+| `score` | `"saturating"` | Performance score. `"saturating"` is Equation 5.2, `"msfe"` the squared error |
+| `bias_statistic` | `"median"` | Statistic of the biases (Equation 5.5), `"median"` or `"mean"` |
+| `bias_window` | `"complete"` | Rounds the biases are calibrated on. `"complete"` is the whole sample, `"pre ELB"` the rounds before `elb_from` |
+
+Centres, sample and regimes.
+
+| Parameter | Thesis value | Meaning |
+|-----------------|-----------------|-------------------------------------|
+| `target` | `2` | Announced target, in %. It also sets the level of Model B's centre |
+| `first_round`, `last_round` | `"2004Q3"`, `"2026Q2"` | Estimation window, 88 rounds |
+| `bench_from`, `bench_to` | `"2004Q3"`, `"2014Q2"` | Normalisation window of the perceived anchor (Equation 3.2) |
+| `elb_from`, `elb_to` | `"2014Q3"`, `"2022Q2"` | ELB regime (Table 3.4) |
+| `horizon` | `4` | Rounds between a forecast and its evaluation |
+
+Calibrated constants. `NA` takes the value the thesis calibrates from
+the data. A number overrides that one constant and leaves the others
+unchanged, so the run shows its effect all else equal.
+
+| Parameter | Default | Meaning |
+|-----------------|-----------------|-------------------------------------|
+| `delta` | `NA` (0.2824) | Half width of the targeter band (Equation 4.3) |
+| `E_star` | `NA` (3.11) | Threshold between ordinary and extreme errors (Equation 5.7) |
+| `tau` | `NA` (0.399) | Scale of the saturating score (Equation 5.6) |
+| `w` | `NA` (0.101) | Weight of the squared error (Equation 5.6) |
+| `bias_up`, `bias_down` | `NA` per model | Hawk and dove bias. `NA` calibrates it (Equation 5.5), a number fixes it |
+| `U_0` | `0` | Performance of every heuristic before the first evaluation |
+
+Optimiser and side analyses.
+
+| Parameter | Thesis value | Meaning |
+|-----------------|-----------------|-------------------------------------|
+| `quick_mode` | `FALSE` | `FALSE` uses 300 starting values, `TRUE` 30. The package ships with `TRUE`, which gives the same estimates |
+| `gamma_start_range`, `rho_start_range` | `c(0.01, 100)`, `c(0, 0.98)` | Ranges of the starting values |
+| `run_feasibility` | `TRUE` | Table 5.5 |
+| `run_anchors` | `TRUE` | Table 6.1 |
+| `run_delta` | `TRUE` | Table 6.2 |
+| `run_score` | `TRUE` | Table 6.3 |
+| `run_biases` | `TRUE` | Table 6.4, the real-time rows of Table J.1 and Figures J.1 and J.2 |
+
+## 4 Function reference (Part IV of `main.R`)
+
+Three arguments recur. `model` is a model letter, `"A"`, `"B"` or
+`"S"`. `data` is the list returned by `prepare()`. `score_set` holds
+the settings of the score, made by `score_settings()`. Examples follow
+in Section 5.
+
+### 4.1 Classification and data of a model
+
+#### \[1\] **`classify(forecast, centre, delta)`**
+
+-   Assign each forecast to a type around its centre (Equation 4.1).
+
+**Arguments**
+
+-   `forecast`, `centre : numeric` vectors of the same length.
+-   `delta : numeric`, half width of the targeter band.
+
+**Returns**
+
+-   A character vector with `"hawk"`, `"targeter"` or `"dove"`.
+
+#### \[2\] **`classify_panel(model, delta)`**
+
+-   Classify the whole panel around the centre of one model. The only
+    place where forecasts are classified.
+
+**Returns**
+
+-   The panel with the columns `model`, `regime`, `centre` and `type`.
+
+#### \[3\] **`prepare(model, delta, b_up, b_down, statistic, window, same_rounds)`**
+
+-   Classify the forecasts around a centre, calibrate the two biases
+    (Equation 5.5, done by `calibrate_biases()`) and collect the data
+    of the scored rounds.
+
+**Arguments**
+
+-   `model`, `delta` as above.
+-   `b_up`, `b_down : numeric or NA`, default the biases of Part I. `NA`
+    calibrates the bias.
+-   `statistic`, `window : character`, default the two bias switches of
+    Part I. `window = "real time"` gives real-time biases (Table 6.4).
+-   `same_rounds : logical`. `TRUE` scores constant biases on the
+    rounds that real-time biases can use.
+
+**Returns**
+
+-   A list with the counts per round, the centres, realised inflation,
+    the SPF mean and the two biases.
+
+#### \[4\] **`score_settings(tau, w, msfe = FALSE)`**
+
+-   Bundle the settings of the performance score.
+
+**Returns**
+
+-   `list(tau, w, msfe)`. With `msfe = TRUE` the score is the squared
+    error.
+
+### 4.2 The expectations block
+
+#### \[5\] **`probabilities(gamma, rho, data, score_set)`**
+
+-   The shares of the hawk, targeter and dove heuristic in every scored
+    round (Equations 5.1 to 5.4).
+
+The errors $e$ of the three heuristics against realised inflation are
+scored by
+
+$$
+\psi(e) = \frac{e^2}{e^2 + \tau^2} + w\,e^2,
+$$
+
+accumulated into the performance
+$U_t = \rho\,U_{t-1} - (1 - \rho)\,\psi(e_t)$ and turned into shares by
+the multinomial logit.
+
+**Arguments**
+
+-   `gamma`, `rho : numeric`, intensity of choice and memory.
+
+**Returns**
+
+-   A matrix, one row per scored round, three columns that sum to one.
+
+#### \[6\] **`minus_loglik(par, data, score_set)`**
+
+-   Minus the multinomial log-likelihood (Equation 5.8), the objective
+    of the optimiser.
+
+**Arguments**
+
+-   `par : numeric(2)`, `c(gamma, rho)`.
+
+**Returns**
+
+-   One number, 1e12 outside $\gamma$ in \[0, 1000\] and $\rho$ in \[0,
+    0.999).
+
+### 4.3 Estimation
+
+#### \[7\] **`starting_values(n_gamma, n_rho)`**
+
+-   The starting grid, log-spaced $\gamma$ times evenly spaced $\rho$.
+
+**Returns**
+
+-   A data frame with the columns `gamma` and `rho`.
+
+#### \[8\] **`estimate(data, score_set, starts)`**
+
+-   Nelder-Mead from every starting value, each search restarted once.
+
+**Returns**
+
+-   A list with `gamma`, `rho`, `loglik` and `searches`, the end point
+    of every search.
+
+#### \[9\] **`dispersion(data, prob)`**
+
+-   The dispersion factor $\hat\varphi$ (Equation 5.10).
+
+**Returns**
+
+-   One number, 15.35 for Model A and 15.36 for Model B.
+
+#### \[10\] **`standard_errors(gamma, rho, data, score_set, phi)`**
+
+-   Standard errors from the Hessian, multiplied by $\hat\varphi$
+    (Equations 5.11 and 5.12).
+
+**Returns**
+
+-   `list(se, correlation)`. Both are `NA` with a warning when the
+    estimate lies at a bound or the Hessian cannot be inverted.
+
+#### \[11\] **`fit_model(model, score_set, starts, delta_used = delta, statistic, window, same_rounds)`**
+
+-   One complete fit of a model. Calls the functions above and forms
+    the aggregate expectation (Equation 5.13) and its error against the
+    SPF mean (Equation 5.14). `statistic`, `window` and `same_rounds`
+    choose the biases as in `prepare()`.
+
+**Returns**
+
+-   A list with everything from `prepare()` and `estimate()`, plus
+    `prob`, `phi`, `se`, `correlation` and `results`, a table with one
+    row per scored round. The fits of the run live in `fit$A` and
+    `fit$B` (or `fit$S`).
+
+### 4.4 Evaluation helpers
+
+#### \[12\] **`rmsfe(error)`, `mafe(error)`, `msfe(error)`**
+
+-   Root mean squared, mean absolute and mean squared forecast error
+    (Equation 5.14).
+
+#### \[13\] **`with_full_sample(rows)`**
+
+-   Repeat every row under the regime `"Full sample"`, so that a
+    `group_by(regime)` also gives the full-sample line.
+
+#### \[14\] **`summarise_fit(model_fit, variation)`**
+
+-   One row in the layout of the Chapter 6 tables.
+
+#### \[15\] **`both_models(variation, score_set, delta_used = delta)`**
+
+-   Fit Model A and the second model under one setting from 30 starting
+    values and return their two rows.
+
+#### \[16\] **`show_variations(rows)`**
+
+-   Print such rows in the thesis layout, each loss as "A / B".
+    `layout_variations()` returns the same table without printing it.
+
+Small helpers format numbers (`three()`, `two()`, `pct()`, `signed()`,
+`wald()`),
+check the parameters (`is_number()`, `is_number_or_na()`, `is_round()`),
+date the regimes (`regime_of()`), pick one element from both fits
+(`from_fits()`) and name a fit in a warning (`fit_label()`).
+
+## 5 Outputs and examples
+
+The chunk below runs `main.R` with its defaults. Each output is then
+shown as the script produces it, followed by a variant that calls the
+functions of Section 4 directly.
+
+```{r}
+#| label: run-main
+#| results: hide
+#| fig-keep: none
+source("main.R")
+```
+
+### 5.1 The sample and the constants
+
+```{r}
+#| label: tbl-sample
+#| tbl-cap: "Rounds by regime and the mean of the two centres."
+knitr::kable(
+  rounds |>
+    group_by(regime) |>
+    summarise(rounds = n(), first = min(round), last = max(round),
+              `mean centre A` = mean(centre_A), `mean centre B` = mean(centre_B)) |>
+    arrange(first),
+  digits = 2)
+```
+
+```{r}
+#| label: premium
+cat("Premium of the swap rate:", round(premium, 4), "\n")
+```
+
+```{r}
+#| label: tbl-constants
+#| tbl-cap: "The constants in use and the values implied by the data (4'001 forecast errors)."
+knitr::kable(data.frame(used      = c(delta, E_star, tau, w),
+                        from_data = from_data[c("delta", "E_star", "tau", "w")],
+                        row.names = c("delta", "E_star", "tau", "w")), digits = 5)
+```
+
+### Output 1: Classification, Table 4.2
+
+`classified` holds every forecast with its type, `shares` the three
+shares per round and model.
+
+**Default call:**
+
+```{r}
+#| label: tbl-4-2
+#| tbl-cap: "Table 4.2: mean targeter share by regime, in %."
+knitr::kable(table_4_2_shares, digits = 2)
+```
+
+**Variant** (a band twice as wide):
+
+```{r}
+#| label: ex-prepare-wide
+wide <- prepare("A", delta = 2 * delta)
+colSums(wide$counts)                      # hawks, targeters, doves over the 84 scored rounds
+c(hawk_bias = wide$b_up, dove_bias = wide$b_down)
+```
+
+### Output 2: Estimates, Table 5.3
+
+`fit$A` and `fit$B` are the two fits of the run.
+
+**Default call:**
+
+```{r}
+#| label: tbl-5-3
+#| tbl-cap: "Table 5.3: overdispersion, standard errors and confidence intervals."
+knitr::kable(table_5_3_estimates)
+```
+
+**Variant** (Model B under the -MSFE score, 30 starting values):
+
+```{r}
+#| label: ex-fit-msfe
+fit_B_msfe <- fit_model("B", score_settings(tau, w, msfe = TRUE), starting_values(6, 5))
+knitr::kable(summarise_fit(fit_B_msfe, "-MSFE"), digits = c(NA, NA, rep(3, 9), 0))
+```
+
+### Output 3: Evaluation, Tables 5.4, 5.6 and 5.7
+
+`results` holds one row per scored round and model. Table 5.6 splits
+the fit into the centre alone and what switching adds. Table 5.7 starts
+both models from the announced target alone and adds the location gain.
+
+**Default call:**
+
+```{r}
+#| label: tbl-5-4
+#| tbl-cap: "Table 5.4: model expectations against the mean SPF forecast, by regime."
+knitr::kable(table_5_4_errors, digits = 3)
+```
+
+```{r}
+#| label: tbl-5-6
+#| tbl-cap: "Table 5.6: RMSFE of the centre alone and of the complete model, in pp, and the switching gain."
+knitr::kable(table_5_6_gain, digits = c(NA, NA, 3, 3, 3, 0))
+```
+
+```{r}
+#| label: tbl-5-7
+#| tbl-cap: "Table 5.7: RMSFE of the target alone, of the centre alone and of the complete model, in pp, with the location gain, the switching gain and the total gain."
+knitr::kable(table_5_7_location, digits = c(NA, NA, rep(3, 6), 0))
+```
+
+**Variant** (the shares for a chosen pair, $\gamma$ = 1 and $\rho$ =
+0.9, in Model A):
+
+```{r}
+#| label: ex-probabilities
+shares_chosen <- probabilities(gamma = 1, rho = 0.9, fit$A, base_score)
+knitr::kable(data.frame(round = fit$A$round, round(shares_chosen, 3))[1:5, ])
+```
+
+### Output 4: Side analyses, Tables 5.5 and 6.1 to 6.4, Table J.1
+
+Each table exists when its switch is `TRUE`. Table J.1 is printed in
+every run and has its real-time rows when `run_biases` is `TRUE`.
+
+**Default call:**
+
+```{r}
+#| label: tbl-5-5
+#| tbl-cap: "Table 5.5: rounds in which the SPF mean lies outside the attainable range, and their mean distance to it."
+knitr::kable(table_5_5_feasibility, digits = 3)
+```
+
+```{r}
+#| label: tbl-6-1
+#| tbl-cap: "Table 6.1: Models A, B and S."
+knitr::kable(table_6_1_anchors)
+```
+
+```{r}
+#| label: tbl-6-2
+#| tbl-cap: "Table 6.2: sensitivity to the tolerance parameter."
+knitr::kable(table_6_2_delta |>
+               select(variation, model, gamma, rho, b_up, b_down, rmsfe_full, rmsfe_elb,
+                      mafe_full, mafe_elb, gain_elb),
+             digits = c(NA, NA, rep(3, 8), 0))
+```
+
+```{r}
+#| label: tbl-6-3
+#| tbl-cap: "Table 6.3: sensitivity of the performance score."
+knitr::kable(table_6_3_score |>
+               select(variation, model, gamma, rho, rmsfe_full, rmsfe_elb, mafe_full,
+                      mafe_elb, gain_elb),
+             digits = c(NA, NA, rep(3, 6), 0))
+```
+
+```{r}
+#| label: tbl-6-4
+#| tbl-cap: "Table 6.4: sensitivity to the calibration of the biases. The column rounds gives the scored rounds of each fit."
+knitr::kable(table_6_4_biases |>
+               select(rounds, variation, model, gamma, rho, rmsfe_full, rmsfe_elb, mafe_full,
+                      mafe_elb, gain_elb),
+             digits = c(0, NA, NA, rep(3, 6), 0))
+```
+
+```{r}
+#| label: tbl-j-1
+#| tbl-cap: "Table J.1: the hawk and dove bias of both models under each calibration. Real-time biases are averaged over the rounds of each regime."
+knitr::kable(table_j_1_biases, digits = 3)
+```
+
+**Variant** (a wider band under the -MSFE score):
+
+```{r}
+#| label: ex-both-models
+knitr::kable(both_models("-MSFE, delta +50%", score_settings(tau, w, msfe = TRUE),
+                         delta_used = 1.5 * delta) |>
+               select(variation, model, gamma, rho, rmsfe_elb, gain_elb),
+             digits = c(NA, NA, 3, 3, 3, 0))
+```
+
+### Output 5: Figures
+
+The figures are objects, so `fig_5_3_expectations` in the console draws
+Figure 5.3 again.
+
+```{r}
+#| label: fig-4-1
+#| fig-cap: "Figure 4.1: every point forecast and the tolerance band around the two centres. Black lines: centre +/- delta. Red line: the centre."
+#| fig-width: 8
+#| fig-height: 6
+fig_4_1_forecasts
+```
+
+```{r}
+#| label: fig-4-2
+#| fig-cap: "Figure 4.2: the share composition under both centres. Dotted lines: the ELB regime."
+#| fig-width: 8
+#| fig-height: 6
+fig_4_2_shares
+```
+
+```{r}
+#| label: fig-4-3
+#| fig-cap: "Figure 4.3: the targeter share around both centres. Shaded: the ELB regime."
+#| fig-width: 8
+#| fig-height: 4.5
+fig_4_3_targeters
+```
+
+```{r}
+#| label: fig-5-1
+#| fig-cap: "Figure 5.1: the three heuristics of each model."
+#| fig-width: 8
+#| fig-height: 6
+fig_5_1_heuristics
+```
+
+```{r}
+#| label: fig-5-2
+#| fig-cap: "Figure 5.2: profile log-likelihood of each parameter. Values above -1.92 lie inside the 95% interval. The dots are the estimates. The thesis figure also shows dashed Wald curves, which are not drawn here."
+#| fig-width: 8
+#| fig-height: 5
+fig_5_2_profiles
+```
+
+```{r}
+#| label: fig-5-3
+#| fig-cap: "Figure 5.3: the aggregate expectation of each model and the SPF mean. Dotted: the lowest expectation Model A can produce."
+#| fig-width: 8
+#| fig-height: 5
+fig_5_3_expectations
+```
+
+```{r}
+#| label: fig-5-4
+#| fig-cap: "Figure 5.4: the SPF mean (dots) relative to the attainable range of each model (band), with the centre (dashed) and the model expectation (solid)."
+#| fig-width: 8
+#| fig-height: 6
+fig_5_4_range
+```
+
+```{r}
+#| label: fig-j-1
+#| fig-cap: "Figure J.1: the real-time hawk bias of both models. Solid: median. Dashed: mean. Shaded: the ELB regime."
+#| fig-width: 8
+#| fig-height: 6
+fig_j_1_hawk_bias
+```
+
+```{r}
+#| label: fig-j-2
+#| fig-cap: "Figure J.2: the real-time dove bias of both models. Solid: median. Dashed: mean. Shaded: the ELB regime."
+#| fig-width: 8
+#| fig-height: 6
+fig_j_2_dove_bias
+```
+
+### Output 6: Comparison with the thesis baseline
+
+```{r}
+#| label: changed-parameters
+if (length(changed) == 0) cat("No parameter differs from the thesis baseline.\n") else print(changed)
+```
+
+```{r}
+#| label: tbl-comparison
+#| tbl-cap: "Table 5.6 of this run next to the thesis values. The last column marks a match to three decimals."
+knitr::kable(comparison)
+```
+
+## 6 Database catalogue
+
+`data/thesis.duckdb` holds thirteen tables. The raw tables keep the
+downloads unchanged and every later table is one cleaning step.
+
+```{r}
+#| label: tbl-catalogue
+#| tbl-cap: "The tables of the database with their number of rows."
+con    <- dbConnect(duckdb(shared_home = FALSE), dbdir = DB_FILE, read_only = TRUE)
+tables <- dbReadTable(con, "table_descriptions")
+tables$rows <- sapply(tables$table, function(t) dbGetQuery(con, paste("SELECT count(*) AS n FROM", t))$n)
+dbDisconnect(con, shutdown = TRUE)
+knitr::kable(tables)
+```
+
+The two tables `main.R` reads:
+
+| Table | Column | Meaning |
+|---------------|---------------|-------------------------------------------|
+| `rounds` | `round`, `survey_date`, `target_date` | Survey round, its survey month and the month its forecast refers to |
+| | `n_forecasts`, `spf_mean`, `spf_sd` | Point forecasts of the round, their mean and standard deviation |
+| | `ils` | 5y5y inflation-linked swap rate of the survey month |
+| | `hicp` | Realised HICP inflation in the target month |
+| | `dfr`, `regime` | Deposit facility rate and the regime it dates |
+| | `lt_mean`, `lt_target_year` | Mean SPF five-year-ahead forecast and its target year |
+| `estimation_panel` | `round`, `forecaster`, `forecast` | One row per point forecast, 4'173 rows |
+| | further columns | The round-level series joined to each forecast |
+
+The raw sources are listed in the README.
+
+## 7 Errors you might see
+
+The script checks its parameters before doing any work and says what to
+change. Five common cases:
+
+-   **`there is no package called 'dplyr'`**: the packages are not
+    installed yet. Run `renv::restore(prompt = FALSE)`.
+-   **`Database not found: data/thesis.duckdb`**: run
+    `build_database.R`.
+-   **`anchor must be "ILS" or "LTSPF"`** (or a similar message for
+    another parameter): a parameter has a value that is not allowed.
+    The message names the parameter and the allowed values.
+-   **Standard errors are `NA`**, with a warning that the estimate lies
+    at the bound: $\gamma$ and $\rho$ are not identified in that fit.
+    The warning names the model and the settings of the fit, for
+    example `Model B, delta 0.4000, tau 0.3994, w 0.0000`, which is the
+    row `w = 0.0000` of Table 6.3. The estimates and all tables still
+    follow.
+-   **A DuckDB lock error**: another R session has the database open.
+    Close that session.
