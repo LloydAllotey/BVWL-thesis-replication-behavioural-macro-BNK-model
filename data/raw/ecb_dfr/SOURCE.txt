@@ -1,0 +1,17 @@
+ecb_key_interest_rates.csv
+
+Source: European Central Bank, "Key ECB interest rates",
+https://www.ecb.europa.eu/stats/policy_and_exchange_rates/key_ecb_interest_rates/html/index.en.html
+Table as shown on the page, retrieved 8 November 2026. Interest rate levels in percentages per
+annum, one row per change, with the date "with effect from". The footnote markers behind some dates
+were dropped, the minus sign written as "-", and empty cells ("-" on the page) left empty.
+An ISO date (date) was added in front of the page's own columns.
+
+Columns: date, year, date_with_effect_from, deposit_facility, main_refinancing_fixed_rate_tenders,
+main_refinancing_variable_rate_tenders_minimum_bid_rate, marginal_lending_facility.
+
+Note from the page: from 10 March 2004 onwards the date refers to the standing facilities (deposit
+and marginal lending) as well as to the main refinancing operations. As of 9 October 2008 the
+corridor of the standing facilities was reduced from 200 to 100 basis points. Effective
+18 September 2024 the spread between the main refinancing rate and the deposit facility rate was
+reduced to 15 basis points.
