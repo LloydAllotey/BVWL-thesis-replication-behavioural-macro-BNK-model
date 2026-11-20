@@ -1,0 +1,3 @@
+# Files renv ignores when it scans the project for package dependencies.
+# The guide needs knitr and rmarkdown only to be rendered, not to run the analysis.
+notebooks/

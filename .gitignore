@@ -1,0 +1,28 @@
+# Bloomberg exports. Licensed data, see the section Data of the README.
+data/raw/ils_5y5y/*
+data/raw/hicp/*
+!data/raw/ils_5y5y/README.md
+!data/raw/hicp/README.md
+
+# Database built from the raw files by build_database.R. It holds the Bloomberg series.
+data/*.duckdb*
+
+# renv restores the package library from renv.lock
+renv/library/
+renv/local/
+renv/cellar/
+renv/lock/
+renv/python/
+renv/sandbox/
+renv/staging/
+
+# R and RStudio session files
+.Rhistory
+.RData
+.Ruserdata
+.Rproj.user/
+Rplots.pdf
+
+# Quarto
+/.quarto/
+notebooks/*_files/
